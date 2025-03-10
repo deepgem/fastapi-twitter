@@ -7,49 +7,51 @@ import models
 from models import Twitter, get_db, check_and_update_tables
 from datetime import datetime
 
-# Initialize a FastAPI application instance
+# Initialize a FastAPI application
 app = FastAPI()
 
-# Set up Jinja2 templates, specifying the template directory
+# Set up Jinja2 templates with the specified directory
 templates = Jinja2Templates(directory="templates")
 
 
-# Route for the home page, returns HTML response
+# Home page route, returns an HTML response
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, db: Session = Depends(get_db)):
+def index(request: Request):
+    # Get a database session
+    db = get_db()
+    if not db:
+        # Return a template page for missing PostgreSQL connection
+        return templates.TemplateResponse("missing-pg.html", {"request": request})
     # Check and update database tables
     check_and_update_tables()
-    # Query all twitters and sort them by creation time in descending order
+    # Query all Twitter records and sort by creation time in descending order
     twitters = db.query(Twitter).order_by(Twitter.created_at.desc()).all()
-    # Process twitter data
+    # Process Twitter data
     twitters = [
-        {
-            "id": twitter.id,
-            "content": twitter.content,
-            "created_at": twitter.created_at,
-        }
+        {"id": twitter.id, "content": twitter.content, "created_at": twitter.created_at}
         for twitter in twitters
     ]
-    # Render the index page with the processed twitter data
+    # Render the index page with processed Twitter data
     return templates.TemplateResponse(
         "index.html", {"request": request, "twitters": twitters}
     )
 
 
-# Route for creating a new twitter, handles POST requests
+# Route to create a new Twitter record, handles POST requests
 @app.post("/new")
-def new_twitter(
-    request: Request,
-    content: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    # Create a new twitter object
+def new_twitter(request: Request, content: str = Form(...)):
+    # Get a database session
+    db = get_db()
+    if not db:
+        # Redirect to the home page if database connection fails
+        return RedirectResponse(url="/", status_code=303)
+    # Create a new Twitter object
     new_twitter = Twitter(content=content)
-    # Add the new twitter to the database session
+    # Add the new Twitter object to the database session
     db.add(new_twitter)
-    # Commit the changes to the database
+    # Commit changes to the database
     db.commit()
-    # Refresh the new twitter object to get the latest data from the database
+    # Refresh the new Twitter object to get updated data from the database
     db.refresh(new_twitter)
     # Redirect to the home page
     return RedirectResponse(url="/", status_code=303)
